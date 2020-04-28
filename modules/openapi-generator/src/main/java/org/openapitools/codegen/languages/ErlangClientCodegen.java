@@ -17,12 +17,18 @@
 
 package org.openapitools.codegen.languages;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.core.util.Json;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.media.ArraySchema;
 import org.openapitools.codegen.*;
 import org.openapitools.codegen.meta.features.*;
 import org.openapitools.codegen.templating.mustache.JoinWithCommaLambda;
+import org.openapitools.codegen.utils.erlang.*;
+import org.openapitools.codegen.utils.ModelUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +86,7 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
         );
 
         outputFolder = "generated-code/erlang";
-        modelTemplateFiles.put("model.mustache", ".erl");
+        modelTemplateFiles.clear();
         apiTemplateFiles.put("api.mustache", ".erl");
 
         embeddedTemplateDir = templateDir = "erlang-client";
@@ -96,63 +102,39 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
         instantiationTypes.clear();
 
         typeMapping.clear();
-        typeMapping.put("enum", "binary()");
-        typeMapping.put("date", "calendar:date()");
-        typeMapping.put("datetime", "calendar:datetime()");
-        typeMapping.put("date-time", "calendar:datetime()");
-        typeMapping.put("boolean", "boolean()");
-        typeMapping.put("string", "binary()");
-        typeMapping.put("integer", "integer()");
-        typeMapping.put("int", "integer()");
-        typeMapping.put("float", "integer()");
-        typeMapping.put("long", "integer()");
-        typeMapping.put("double", "float()");
-        typeMapping.put("array", "list()");
-        typeMapping.put("map", "maps:map()");
-        typeMapping.put("number", "integer()");
-        typeMapping.put("bigdecimal", "float()");
-        typeMapping.put("List", "list()");
-        typeMapping.put("object", "maps:map()");
-        typeMapping.put("file", "binary()");
-        typeMapping.put("binary", "binary()");
-        typeMapping.put("bytearray", "binary()");
-        typeMapping.put("byte", "binary()");
-        typeMapping.put("uuid", "binary()");
-        typeMapping.put("uri", "binary()");
-        typeMapping.put("password", "binary()");
+        typeMapping.put("enum", "binary");
+        typeMapping.put("date", "date");
+        typeMapping.put("datetime", "datetime");
+        typeMapping.put("date-time", "datetime");
+        typeMapping.put("boolean", "boolean");
+        typeMapping.put("string", "binary");
+        typeMapping.put("integer", "int32");
+        typeMapping.put("int", "int32");
+        typeMapping.put("float", "integer");
+        typeMapping.put("long", "int64");
+        typeMapping.put("double", "float");
+        typeMapping.put("array", "list");
+        typeMapping.put("map", "map");
+        typeMapping.put("number", "float");
+        typeMapping.put("bigdecimal", "float");
+        typeMapping.put("List", "list");
+        typeMapping.put("object", "map");
+        typeMapping.put("file", "binary");
+        typeMapping.put("binary", "binary");
+        typeMapping.put("bytearray", "binary");
+        typeMapping.put("byte", "binary");
+        typeMapping.put("uuid", "binary");
+        typeMapping.put("uri", "binary");
+        typeMapping.put("password", "binary");
 
         cliOptions.clear();
         cliOptions.add(new CliOption(CodegenConstants.PACKAGE_NAME, "Erlang application name (convention: lowercase).")
                 .defaultValue(this.packageName));
         cliOptions.add(new CliOption(CodegenConstants.PACKAGE_VERSION, "Erlang application version")
                 .defaultValue(this.packageVersion));
-    }
 
-    @Override
-    public String getTypeDeclaration(String name) {
-        return name + ":" + name + "()";
-    }
-
-    @Override
-    public String getTypeDeclaration(Schema p) {
-        String schemaType = getSchemaType(p);
-        if (typeMapping.containsKey(schemaType)) {
-            return typeMapping.get(schemaType);
-        }
-        return schemaType;
-    }
-
-    @Override
-    public String getSchemaType(Schema p) {
-        String schemaType = super.getSchemaType(p);
-        String type = null;
-        if (typeMapping.containsKey(schemaType)) {
-            type = typeMapping.get(schemaType);
-            if (languageSpecificPrimitives.contains(type))
-                return (type);
-        } else
-            type = getTypeDeclaration(toModelName(lowerCamelCase(schemaType)));
-        return type;
+        additionalProperties.put("apiVersion", packageVersion);
+        additionalProperties.put("apiPath", sourceFolder);
     }
 
     @Override
@@ -195,8 +177,16 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
 
         supportingFiles.add(new SupportingFile("rebar.config.mustache", "", "rebar.config"));
         supportingFiles.add(new SupportingFile("app.src.mustache", "", "src" + File.separator + this.packageName + ".app.src"));
-        supportingFiles.add(new SupportingFile("utils.mustache", "", "src" + File.separator + this.packageName + "_utils.erl"));
-        supportingFiles.add(new SupportingFile("README.mustache", "", "README.md"));
+        supportingFiles.add(new SupportingFile("procession.mustache", "", toSourceFilePath("procession", "erl")));
+        supportingFiles.add(new SupportingFile("utils.mustache", "", toSourceFilePath("utils", "erl")));
+        supportingFiles.add(new SupportingFile("types.mustache", "", toPackageNameSrcFile("erl")));
+        supportingFiles.add(new SupportingFile("validation.mustache", "", toSourceFilePath("validation", "erl")));
+        supportingFiles.add(new SupportingFile("param_validator.mustache", "", toSourceFilePath("param_validator", "erl")));
+        supportingFiles.add(new SupportingFile("schema_validator.mustache", "", toSourceFilePath("schema_validator", "erl")));
+        supportingFiles.add(new SupportingFile("schema.mustache", "", toSourceFilePath("schema", "erl")));
+        writeOptional(outputFolder, new SupportingFile("README.mustache", "", "README.md"));
+
+        ModelUtils.setGenerateAliasAsModel(true);
     }
 
     public String qsEncode(Object o) {
@@ -229,6 +219,14 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
             return this.reservedWordsMappings().get(name);
         }
         return camelize(name) + '_';
+    }
+
+    @Override
+    public String addRegularExpressionDelimiter(String pattern) {
+        if (pattern != null) {
+            return pattern.replaceAll("^/","").replaceAll("/$","");
+        }
+        return pattern;
     }
 
     @Override
@@ -273,17 +271,12 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
 
     @Override
     public String toModelName(String name) {
-        return this.packageName + "_" + underscore(name.replaceAll("-", "_").replaceAll("\\.", "_"));
+        return camelize(toModelFilename(name));
     }
 
     @Override
     public String toApiName(String name) {
         return this.packageName + "_" + underscore(name.replaceAll("-", "_").replaceAll("\\.", "_"));
-    }
-
-    @Override
-    public String toModelFilename(String name) {
-        return this.packageName + "_" + underscore(name.replaceAll("\\.", "_"));
     }
 
     @Override
@@ -342,6 +335,24 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
         }
         operations.put("operation", newOs);
         return objs;
+    }
+
+    @Override
+    public Map<String, Object> postProcessSupportingFileData(Map<String, Object> objs) {
+        OpenAPI openAPI = (OpenAPI) objs.get("openAPI");
+        if (openAPI != null) {
+            try {
+                objs.put("openapi-json", Json.mapper().writer(new ErlangJsonPrinter()).with(new ErlangJsonFactory()).writeValueAsString(openAPI));
+            } catch (JsonProcessingException e) {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+        return super.postProcessSupportingFileData(objs);
+    }
+
+    @Override
+    public String getArraySchemaTypeDeclaration(ArraySchema arraySchema, String name) {
+        return getTypeDeclaration(name);
     }
 
     public void setPackageName(String packageName) {
@@ -465,5 +476,21 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
         public void setReplacedPathName(String replacedPathName) {
             this.replacedPathName = replacedPathName;
         }
+    }
+
+    protected String toModuleName(String name) {
+        return this.packageName + "_" + underscore(name.replaceAll("-", "_"));
+    }
+
+    protected String toSourceFilePath(String name, String extension) {
+        return "src" + File.separator +  toModuleName(name) + "." + extension;
+    }
+
+    protected String toPrivFilePath(String name, String extension) {
+        return "priv" + File.separator + name + "." + extension;
+    }
+
+    protected String toPackageNameSrcFile(String extension) {
+        return "src" + File.separator + this.packageName + "." + extension;
     }
 }
