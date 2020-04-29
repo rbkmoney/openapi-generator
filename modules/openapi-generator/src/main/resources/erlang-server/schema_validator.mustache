@@ -107,24 +107,12 @@ validate(OperationID, Value, DefinitionName, MsgType, Schema, ValidationOpts) ->
             custom_validator => CustomValidator
         }} | options()
     ],
-    case validate_with_state(DefinitionName, Value, Schema, Options) of
+    RefPath = "#/components/schemas/" ++ swag_server_utils:to_list(DefinitionName),
+    case jesse:validate_local_ref(RefPath, Schema, Value, Options) of
         {ok, _} ->
             ok;
         {error, [Error]} ->
             {error, map_error_reason(Error)}
-    end.
-
-validate_with_state(DefinitionName, Value, Schema, Options) ->
-    State = jesse_state:new(Schema, Options),
-    Definition = list_to_binary("#/components/schemas/" ++ swag_server_utils:to_list(DefinitionName)),
-    try
-        NewState = jesse_schema_validator:validate_with_state([{<<"$ref">>, Definition}], Value, State),
-        jesse_state:get_error_list(NewState)
-    of
-        [] -> {ok, Value};
-        ErrorList  -> {error, ErrorList}
-    catch
-        throw:ErrorList -> {error, ErrorList}
     end.
 
 make_context(OperationID, DefinitionName, MsgType) ->
