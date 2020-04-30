@@ -14,6 +14,7 @@ get() ->
 -spec enumerate_components(Schema :: map()) ->
     Schema :: map() | no_return().
 enumerate_components(#{?COMPONENTS := Components}) ->
+  %@NOTICE only parents within the same component type are supported
   #{?COMPONENTS => maps:map(fun enumerate_discriminator_children/2, Components)};
 enumerate_components(_) ->
   handle_error(components_undefined).

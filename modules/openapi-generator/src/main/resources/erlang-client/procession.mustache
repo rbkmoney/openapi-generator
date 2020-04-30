@@ -61,7 +61,6 @@ process_request(Method, BaseUrl, Params, Spec, Opts) ->
 process_response(undefined, <<>>) ->
     {ok, #{}};
 process_response(Spec, RespBody) ->
-    _ = ct:pal("~p", [RespBody]),
     Resp = jsx:decode(RespBody, [return_maps]),
     case validate_response(Spec, Resp) of
         ok ->
