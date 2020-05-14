@@ -17,7 +17,7 @@
     {ok, Code :: integer(), RespHeaders :: list(), Response :: map()} |
     {error, _Reason}.
 {{operationId}}(Endpoint, Params, Opts) ->
-    process_response({{packageName}}_procession:process_request(
+    process_response({{packageName}}_processor:process_request(
         {{httpMethod}},
         {{packageName}}_utils:get_url(Endpoint, "{{basePathWithoutHost}}{{path}}"),
         Params,
@@ -26,7 +26,7 @@
     ), {{operationId}}).
 {{/operation}}{{/operations}}
 process_response({ok, Code, Headers, RespBody}, OperationID) ->
-    try {{packageName}}_procession:process_response(
+    try {{packageName}}_processor:process_response(
         get_response_spec(OperationID, Code),
         RespBody
     ) of
@@ -43,7 +43,7 @@ process_response(Error, _) ->
 
 
 -spec get_request_spec(OperationID :: {{packageName}}:operation_id()) ->
-    Spec :: {{packageName}}_procession:request_spec().
+    Spec :: {{packageName}}_processor:request_spec().
 {{#operations}}{{#operation}}
 get_request_spec('{{operationId}}') ->
     [
@@ -54,8 +54,8 @@ get_request_spec('{{operationId}}') ->
         {{/hasMore}}{{/allParams}}
     ]{{#hasMore}};{{/hasMore}}{{/operation}}.{{/operations}}
 
--spec get_response_spec(OperationID :: {{packageName}}:operation_id(), Code :: {{packageName}}_procession:code()) ->
-    Spec :: {{packageName}}_procession:response_spec() | no_return().
+-spec get_response_spec(OperationID :: {{packageName}}:operation_id(), Code :: {{packageName}}_processor:code()) ->
+    Spec :: {{packageName}}_processor:response_spec() | no_return().
 
 {{#operations}}{{#operation}}{{#responses}}
 get_response_spec('{{operationId}}', {{code}}) ->

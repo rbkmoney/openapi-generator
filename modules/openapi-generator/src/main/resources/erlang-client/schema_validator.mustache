@@ -66,7 +66,7 @@ check_value(Value, {?DISCRIMINATOR, DiscrField}, State) ->
         true  -> validate_discriminator(Value, DiscrField, State);
         false -> State
     end;
-check_value(Value, {?ALLOF, Schemas}, State) ->
+check_value(Value, {?ALLOF, Schemas}, State) -> % Override AllOf check to preserve error information
     check_all_of(Value, Schemas, State);
 check_value(Value, Attr = {?REF, Ref}, State) ->
     case is_recursive_ref(Ref, State) of
@@ -204,7 +204,7 @@ get_error_path(Path0) ->
     <<" Path to item: ", Path3/binary>>.
 
 get_error_description(any_schemas_not_valid, _Value) ->
-    <<"Schema rule \"AnyOf\" violated">>;
+    <<"Schema rule \"AnyOf\" does not match any supplied schemas">>;
 get_error_description({missing_dependency, Dependency0}, _Value) ->
     Dependency = {{packageName}}_utils:to_binary(Dependency0),
     <<"Missing dependency: ", Dependency/binary>>;
@@ -224,7 +224,7 @@ get_error_description(not_in_enum, _Value) ->
 get_error_description(not_in_range, _Value) ->
     <<"Not in range">>;
 get_error_description(not_multiple_of, _Value) ->
-     <<"Schema rule \"MultipleOf\" violated">>;
+    <<"Schema rule \"MultipleOf\" violated">>;
 get_error_description(not_one_schema_valid, _Value) ->
     <<"Schema rule \"OneOf\" violated">>;
 get_error_description(not_schema_valid, _Value) ->
@@ -232,7 +232,7 @@ get_error_description(not_schema_valid, _Value) ->
 get_error_description(too_few_properties, _Value) ->
     <<"Too few properties">>;
 get_error_description(too_many_properties, _Value) ->
-     <<"Too many properties">>;
+    <<"Too many properties">>;
 get_error_description(wrong_length, _Value) ->
     <<"Wrong length">>;
 get_error_description(wrong_size, _Value) ->

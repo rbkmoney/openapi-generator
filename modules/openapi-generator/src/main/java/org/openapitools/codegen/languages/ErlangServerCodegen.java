@@ -25,8 +25,8 @@ import org.slf4j.LoggerFactory;
 import io.swagger.v3.core.util.Json;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.ArraySchema;
-import org.openapitools.codegen.utils.erlang.*;
 import org.openapitools.codegen.utils.ModelUtils;
+import org.openapitools.codegen.serializer.SerializerUtils;
 
 import java.io.File;
 import java.util.Arrays;
@@ -183,6 +183,8 @@ public class ErlangServerCodegen extends DefaultCodegen implements CodegenConfig
         supportingFiles.add(new SupportingFile("schema_validator.mustache", "", toSourceFilePath("schema_validator", "erl")));
         supportingFiles.add(new SupportingFile("custom_validator.mustache", "", toSourceFilePath("custom_validator", "erl")));
         supportingFiles.add(new SupportingFile("schema.mustache", "", toSourceFilePath("schema", "erl")));
+        supportingFiles.add(new SupportingFile("openapi.mustache", "", toPrivFilePath(this.openApiSpecName, "json")));
+        writeOptional(outputFolder, new SupportingFile("README.mustache", "", "README.md"));
 
         ModelUtils.setGenerateAliasAsModel(true);
     }
@@ -307,14 +309,7 @@ public class ErlangServerCodegen extends DefaultCodegen implements CodegenConfig
 
     @Override
     public Map<String, Object> postProcessSupportingFileData(Map<String, Object> objs) {
-        OpenAPI openAPI = (OpenAPI) objs.get("openAPI");
-        if (openAPI != null) {
-            try {
-                objs.put("openapi-json", Json.mapper().writer(new ErlangJsonPrinter()).with(new ErlangJsonFactory()).writeValueAsString(openAPI));
-            } catch (JsonProcessingException e) {
-                LOGGER.error(e.getMessage(), e);
-            }
-        }
+        generateJSONSpecFile(objs);
         return super.postProcessSupportingFileData(objs);
     }
 

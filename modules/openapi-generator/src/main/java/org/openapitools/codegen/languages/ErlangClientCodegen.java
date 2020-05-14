@@ -27,8 +27,8 @@ import io.swagger.v3.oas.models.media.ArraySchema;
 import org.openapitools.codegen.*;
 import org.openapitools.codegen.meta.features.*;
 import org.openapitools.codegen.templating.mustache.JoinWithCommaLambda;
-import org.openapitools.codegen.utils.erlang.*;
 import org.openapitools.codegen.utils.ModelUtils;
+import org.openapitools.codegen.serializer.SerializerUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +48,7 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
     protected String packageName = "openapi";
     protected String packageVersion = "1.0.0";
     protected String sourceFolder = "src";
+    protected String openApiSpecName = "openapi";
 
     public CodegenType getTag() {
         return CodegenType.CLIENT;
@@ -132,6 +133,8 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
                 .defaultValue(this.packageName));
         cliOptions.add(new CliOption(CodegenConstants.PACKAGE_VERSION, "Erlang application version")
                 .defaultValue(this.packageVersion));
+        cliOptions.add(new CliOption(CodegenConstants.OPEN_API_SPEC_NAME, "Openapi Spec Name.")
+                .defaultValue(this.openApiSpecName));
 
         additionalProperties.put("apiVersion", packageVersion);
         additionalProperties.put("apiPath", sourceFolder);
@@ -153,6 +156,12 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
             setPackageVersion((String) additionalProperties.get(CodegenConstants.PACKAGE_VERSION));
         } else {
             setPackageVersion("1.0.0");
+        }
+
+        if (additionalProperties.containsKey(CodegenConstants.OPEN_API_SPEC_NAME)) {
+            setOpenApiSpecName((String) additionalProperties.get(CodegenConstants.OPEN_API_SPEC_NAME));
+        } else {
+            additionalProperties.put(CodegenConstants.OPEN_API_SPEC_NAME, openApiSpecName);
         }
 
         additionalProperties.put(CodegenConstants.PACKAGE_NAME, packageName);
@@ -177,13 +186,14 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
 
         supportingFiles.add(new SupportingFile("rebar.config.mustache", "", "rebar.config"));
         supportingFiles.add(new SupportingFile("app.src.mustache", "", "src" + File.separator + this.packageName + ".app.src"));
-        supportingFiles.add(new SupportingFile("procession.mustache", "", toSourceFilePath("procession", "erl")));
+        supportingFiles.add(new SupportingFile("processor.mustache", "", toSourceFilePath("processor", "erl")));
         supportingFiles.add(new SupportingFile("utils.mustache", "", toSourceFilePath("utils", "erl")));
         supportingFiles.add(new SupportingFile("types.mustache", "", toPackageNameSrcFile("erl")));
         supportingFiles.add(new SupportingFile("validation.mustache", "", toSourceFilePath("validation", "erl")));
         supportingFiles.add(new SupportingFile("param_validator.mustache", "", toSourceFilePath("param_validator", "erl")));
         supportingFiles.add(new SupportingFile("schema_validator.mustache", "", toSourceFilePath("schema_validator", "erl")));
         supportingFiles.add(new SupportingFile("schema.mustache", "", toSourceFilePath("schema", "erl")));
+        supportingFiles.add(new SupportingFile("openapi.mustache", "", toPrivFilePath(this.openApiSpecName, "json")));
         writeOptional(outputFolder, new SupportingFile("README.mustache", "", "README.md"));
 
         ModelUtils.setGenerateAliasAsModel(true);
@@ -339,14 +349,7 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
 
     @Override
     public Map<String, Object> postProcessSupportingFileData(Map<String, Object> objs) {
-        OpenAPI openAPI = (OpenAPI) objs.get("openAPI");
-        if (openAPI != null) {
-            try {
-                objs.put("openapi-json", Json.mapper().writer(new ErlangJsonPrinter()).with(new ErlangJsonFactory()).writeValueAsString(openAPI));
-            } catch (JsonProcessingException e) {
-                LOGGER.error(e.getMessage(), e);
-            }
-        }
+        generateJSONSpecFile(objs);
         return super.postProcessSupportingFileData(objs);
     }
 
@@ -480,6 +483,10 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
 
     protected String toModuleName(String name) {
         return this.packageName + "_" + underscore(name.replaceAll("-", "_"));
+    }
+
+    public void setOpenApiSpecName(String openApiSpecName) {
+        this.openApiSpecName = openApiSpecName;
     }
 
     protected String toSourceFilePath(String name, String extension) {
