@@ -19,6 +19,7 @@ enumerate_components(Schema = #{?COMPONENTS := Components}) ->
 enumerate_components(Schema) ->
     Schema.
 
+%% When using the discriminator, inline schemas will not be considered.
 -spec enumerate_discriminator_children(Schema :: map()) ->
     Schema :: map() | no_return().
 enumerate_discriminator_children(#{<<"schemas">> := Defs}) ->
@@ -46,9 +47,13 @@ build_hier(Defs) ->
                 fun
                     (#{<<"$ref">> := <<"#/components/schemas/", Type/binary>>}, Hier) ->
                         %% check: whether type itself exists
+                        %% TODO: Implement according to OAS3:
+                        %% In scenarios where the value of the discriminator field does not match
+                        %% the schema name or implicit mapping is not possible, an optional mapping
+                        %% definition MAY be used.
                         Schema = maps:get(Type, Defs),
                         Discriminator = maps:get(<<"discriminator">>, Schema, undefined),
-                        insert_child( Discriminator, Type, Name, Hier );
+                        insert_child(Discriminator, Type, Name, Hier);
 
                     (_, Hier) ->
                         Hier
@@ -59,7 +64,6 @@ build_hier(Defs) ->
     end,
     maps:fold(F, #{}, Defs).
 
-
 insert_parent(Parent, Hier) when not is_map_key(Parent, Hier) ->
     Hier#{Parent => []};
 insert_parent(_, Hier) ->
@@ -69,7 +73,6 @@ insert_child(undefined, _Parent, _Child, Hier) ->
     Hier;
 insert_child(_Discriminator, Parent, Child, Hier) ->
     maps:put(Parent, [Child | maps:get(Parent, Hier, [])], Hier).
-
 
 correct_schema(Parent, Children, Schema) ->
     PropertyName = get_sub_schema([Parent, <<"discriminator">>, <<"propertyName">>], Schema),
