@@ -15,9 +15,9 @@ get() ->
 -spec enumerate_components(Schema :: map()) ->
     Schema :: map() | no_return().
 enumerate_components(Schema = #{?COMPONENTS := Components}) ->
-    Schema#{?COMPONENTS => maps:map(fun enumerate_discriminator_children/2, Components)};
+    Schema#{?COMPONENTS => enumerate_discriminator_children(Components)};
 enumerate_components(Schema) ->
-    handle_error(no_components).
+    Schema.
 
 -spec enumerate_discriminator_children(Schema :: map()) ->
     Schema :: map() | no_return().
@@ -28,8 +28,8 @@ enumerate_discriminator_children(#{<<"schemas">> := Defs}) ->
         _:Error ->
             handle_error(Error)
     end;
-enumerate_discriminator_children(_) ->
-    handle_error(no_schemas).
+enumerate_discriminator_children(Schema) ->
+    Schema.
 
 -spec handle_error(_) ->
     no_return().
@@ -45,7 +45,10 @@ build_hier(Defs) ->
             lists:foldl(
                 fun
                     (#{<<"$ref">> := <<"#/components/schemas/", Type/binary>>}, Hier) ->
-                        insert_child( Type, Name, Hier );
+                        %% check: whether type itself exists
+                        Schema = maps:get(Type, Defs),
+                        Discriminator = maps:get(<<"discriminator">>, Schema, undefined),
+                        insert_child( Discriminator, Type, Name, Hier );
 
                     (_, Hier) ->
                         Hier
@@ -62,18 +65,20 @@ insert_parent(Parent, Hier) when not is_map_key(Parent, Hier) ->
 insert_parent(_, Hier) ->
     Hier.
 
-insert_child(Parent, Child, Hier) ->
+insert_child(undefined, _Parent, _Child, Hier) ->
+    Hier;
+insert_child(_Discriminator, Parent, Child, Hier) ->
     maps:put(Parent, [Child | maps:get(Parent, Hier, [])], Hier).
 
 
 correct_schema(Parent, Children, Schema) ->
     PropertyName = get_sub_schema([Parent, <<"discriminator">>, <<"propertyName">>], Schema),
-    update_schema(Children, [Parent, <<"properties">>, PropertyName, <<"enum">>], Schema).
+    update_schema([Parent, <<"properties">>, PropertyName, <<"enum">>], Children, Schema).
 
-update_schema(Value, [Key], Schema) ->
+update_schema([Key], Value, Schema) ->
     Schema#{Key => Value};
-update_schema(Value, [Key | Path], Schema) ->
-    maps:put(Key, update_schema(Value, Path, maps:get(Key, Schema)), Schema).
+update_schema([Key | Path], Value, Schema) ->
+    maps:put(Key, update_schema(Path, Value, maps:get(Key, Schema)), Schema).
 
 get_sub_schema(Path, Schema) ->
     lists:foldl(fun maps:get/2, Schema, Path).
